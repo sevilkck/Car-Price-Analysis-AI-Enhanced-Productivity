@@ -1,0 +1,118 @@
+# =============================================================================
+# Databricks Asset Bundle — Car Price Prediction Pipeline
+# =============================================================================
+# Defines the orchestrated job that runs all 8 notebooks in sequence.
+# Deploy with: databricks bundle deploy
+# Run with:    databricks bundle run car_price_pipeline
+# =============================================================================
+
+bundle:
+  name: car_price_prediction
+
+variables:
+  notebook_path:
+    description: "Workspace path where the notebooks live after deployment."
+    default: "/Workspace/Users/${workspace.current_user.userName}/car_price_databricks/notebooks"
+
+resources:
+  jobs:
+    car_price_pipeline:
+      name: "Car Price Prediction — Full Pipeline"
+      description: "End-to-end ML pipeline: gathering → cleaning → EDA → feature engineering → preprocessing → training → evaluation → explainability"
+
+      # Email on failure (optional — replace with your email or remove)
+      # email_notifications:
+      #   on_failure:
+      #     - your.email@example.com
+
+      # Run on a job cluster (cheaper than all-purpose) — spun up just for this job
+      job_clusters:
+        - job_cluster_key: pipeline_cluster
+          new_cluster:
+            spark_version: "15.4.x-cpu-ml-scala2.12"   # Databricks Runtime ML — has scikit-learn, mlflow, etc. pre-installed
+            node_type_id: "Standard_DS3_v2"            # Small/cheap node — adjust for your cloud (AWS: i3.xlarge, GCP: n1-standard-4)
+            num_workers: 0                             # Single-node cluster — dataset is only 205 rows, no Spark needed
+            spark_conf:
+              "spark.databricks.cluster.profile": "singleNode"
+              "spark.master": "local[*]"
+            custom_tags:
+              ResourceClass: "SingleNode"
+
+      # Tasks run sequentially — each one waits for the previous to succeed
+      tasks:
+        - task_key: "01_data_gathering"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.notebook_path}/01_data_gathering"
+
+        - task_key: "02_data_cleaning"
+          depends_on:
+            - task_key: "01_data_gathering"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.notebook_path}/02_data_cleaning"
+
+        - task_key: "03_eda"
+          depends_on:
+            - task_key: "02_data_cleaning"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.notebook_path}/03_eda"
+
+        - task_key: "04_feature_engineering"
+          depends_on:
+            - task_key: "03_eda"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.notebook_path}/04_feature_engineering"
+
+        - task_key: "05_preprocessing"
+          depends_on:
+            - task_key: "04_feature_engineering"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.notebook_path}/05_preprocessing"
+
+        - task_key: "06_train_models"
+          depends_on:
+            - task_key: "05_preprocessing"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.notebook_path}/06_train_models"
+
+        - task_key: "07_evaluation"
+          depends_on:
+            - task_key: "06_train_models"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.notebook_path}/07_evaluation"
+
+        - task_key: "08_explainability"
+          depends_on:
+            - task_key: "07_evaluation"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: "${var.notebook_path}/08_explainability"
+
+      # Optional: schedule weekly (commented out — enable when you're ready)
+      # schedule:
+      #   quartz_cron_expression: "0 0 9 ? * MON"   # Every Monday 9am
+      #   timezone_id: "Europe/Berlin"
+
+  # Sync the notebooks/ folder to the workspace on `bundle deploy`
+  # (This block is implicit — bundle picks up the notebooks/ folder by convention)
+
+# =============================================================================
+# Multi-environment targets (dev/prod) — start with just dev
+# =============================================================================
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: "https://YOUR-WORKSPACE.cloud.databricks.com"   # ← replace with your workspace URL
+
+  # prod:
+  #   mode: production
+  #   workspace:
+  #     host: "https://YOUR-PROD-WORKSPACE.cloud.databricks.com"

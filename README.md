@@ -3,7 +3,6 @@
 Can machine learning accurately predict used car prices, and does manual model building outperform automated tools?  
 This project answers that question through a full end-to-end regression workflow using traditional models, AutoML, and explainability methods.
 
-📺 Project Presentation Video: *Add your YouTube link here*
 
 ---
 
@@ -28,7 +27,6 @@ This project answers that question through a full end-to-end regression workflow
 - [Workflow Phases](#workflow-phases)
 - [Model Results](#model-results)
 - [Key Findings](#key-findings)
-- [Setup & Installation](#setup--installation)
 
 ---
 

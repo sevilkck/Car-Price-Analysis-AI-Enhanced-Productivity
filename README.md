@@ -1,173 +1,207 @@
-# Car Price Prediction — Databricks Pipeline
+# ML Car Price Prediction
 
-End-to-end machine learning pipeline that predicts used-car prices, orchestrated as a sequential Databricks workflow.
+Can machine learning accurately predict used car prices, and does manual model building outperform automated tools?  
+This project answers that question through a full end-to-end regression workflow using traditional models, AutoML, and explainability methods.
 
-> **Status**: ready to deploy. Built with Databricks Asset Bundles, MLflow tracking, and DBFS storage.
-
----
-
-## What this pipeline does
-
-Given a dataset of 205 cars with 26 attributes (engine size, horsepower, body type, brand, etc.), the pipeline trains three regression models that predict the sale price:
-
-| Model | Strength |
-|---|---|
-| **Linear Regression** | Highly interpretable — every feature gets a $ coefficient |
-| **Decision Tree** | Captures non-linear splits, visually explainable |
-| **XGBoost** | Best raw accuracy via gradient boosting |
-
-All runs are logged to MLflow (built into Databricks) so you can compare experiments over time.
+📺 Project Presentation Video: *Add your YouTube link here*
 
 ---
 
-## Pipeline structure
+## Tools & Skills Used
 
-```
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ 01 Data          │───▶│ 02 Data Cleaning │───▶│ 03 EDA           │
-│    Gathering     │    │                  │    │                  │
-└──────────────────┘    └──────────────────┘    └──────────────────┘
-                                                          │
-                                                          ▼
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ 06 Train Models  │◀───│ 05 Preprocessing │◀───│ 04 Feature       │
-│   (+ MLflow)     │    │                  │    │    Engineering   │
-└──────────────────┘    └──────────────────┘    └──────────────────┘
-         │
-         ▼
-┌──────────────────┐    ┌──────────────────┐
-│ 07 Evaluation    │───▶│ 08 Explainability│
-└──────────────────┘    └──────────────────┘
-```
-
-Each notebook reads from DBFS, transforms, and writes back — paths are defined once in `00_config.py` and shared via `%run`.
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat&logo=pandas&logoColor=white)
+![NumPy](https://img.shields.io/badge/NumPy-013243?style=flat&logo=numpy&logoColor=white)
+![Matplotlib](https://img.shields.io/badge/Matplotlib-11557c?style=flat&logo=matplotlib&logoColor=white)
+![Seaborn](https://img.shields.io/badge/Seaborn-3776AB?style=flat&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=flat&logo=scikit-learn&logoColor=white)
+![PyCaret](https://img.shields.io/badge/PyCaret-1B9E77?style=flat&logoColor=white)
+![SHAP](https://img.shields.io/badge/SHAP-4B0082?style=flat&logoColor=white)
+![LIME](https://img.shields.io/badge/LIME-32CD32?style=flat&logoColor=white)
 
 ---
 
-## Repository layout
+## Quick Access
 
-```
-car_price_databricks/
-├── README.md                    ← you are here
-├── EXECUTIVE_SUMMARY.md         ← stakeholder-friendly results overview
-├── databricks.yml               ← orchestration config (Asset Bundle)
-├── notebooks/
-│   ├── 00_config.py             ← shared paths & settings
-│   ├── 01_data_gathering.py
-│   ├── 02_data_cleaning.py
-│   ├── 03_eda.py
-│   ├── 04_feature_engineering.py
-│   ├── 05_preprocessing.py
-│   ├── 06_train_models.py
-│   ├── 07_evaluation.py
-│   └── 08_explainability.py
-└── data/
-    └── README.md                ← where to put CarPrice_Assignment.csv
-```
+- [Project Overview](#project-overview)
+- [Dataset](#dataset)
+- [Workflow Phases](#workflow-phases)
+- [Model Results](#model-results)
+- [Key Findings](#key-findings)
+- [Setup & Installation](#setup--installation)
 
 ---
 
-## Setup — first-time install
+# Project Overview
 
-### 1. Get the dataset into Databricks
+This project builds a complete machine learning pipeline to predict car prices based on vehicle specifications such as engine size, weight, fuel type, and brand.
 
-Upload `CarPrice_Assignment.csv` to DBFS once:
+The workflow compares:
 
-**Via UI**: Databricks workspace → **Catalog** (left sidebar) → **DBFS** → **FileStore** → create folder `car_price/raw/` → upload the CSV.
+1. **Manual Machine Learning Models**
+2. **Automated Machine Learning using PyCaret**
+3. **Explainability methods** to understand why models make predictions
 
-**Via CLI**:
-```bash
-databricks fs cp ./data/CarPrice_Assignment.csv dbfs:/FileStore/car_price/raw/
-```
-
-### 2. Install the Databricks CLI (if you don't have it)
-
-```bash
-# macOS
-brew tap databricks/tap
-brew install databricks
-
-# Verify
-databricks --version
-```
-
-### 3. Authenticate
-
-```bash
-databricks configure
-# Paste your workspace URL: https://your-workspace.cloud.databricks.com
-# Paste a personal access token (User Settings → Developer → Access tokens → Generate new token)
-```
-
-### 4. Edit the workspace URL in `databricks.yml`
-
-Open `databricks.yml` and replace:
-```yaml
-host: "https://YOUR-WORKSPACE.cloud.databricks.com"
-```
-with your actual workspace URL.
+The goal was not only to build accurate models, but also to understand which features most strongly influence car prices.
 
 ---
 
-## Deploy and run
+# Dataset
 
-```bash
-# Deploy notebooks + job config to your workspace
-databricks bundle deploy
+This project uses the **Car Price Dataset** from Kaggle.
 
-# Trigger the full pipeline once
-databricks bundle run car_price_pipeline
-```
+- **205 cars**
+- **26 features**
+- Target variable: **price**
 
-**Or run from the UI**: Workspace → Workflows → "Car Price Prediction — Full Pipeline" → **Run now**.
+Features include:
 
-The job spins up a single-node cluster, runs all 8 notebooks sequentially, then shuts the cluster down. Total time: ~5–10 minutes. Cost: a few cents.
-
----
-
-## What you get after a successful run
-
-- **DBFS** (`/dbfs/FileStore/car_price/`):
-  - `models/*.pkl` — trained model artifacts
-  - `results/model_results.csv` — comparison table
-  - `splits/*.csv` — train/test data
-- **MLflow** (Experiments tab in Databricks): every model run with metrics, parameters, and the model itself logged. Compare runs side-by-side.
+- engine size  
+- curb weight  
+- horsepower  
+- fuel type  
+- body style  
+- brand name  
+- fuel economy
 
 ---
 
-## Local development
+# Workflow Phases
 
-The notebooks are stored as Databricks `.py` source files (with `# COMMAND ----------` cell separators). They're plain Python — Git tracks them cleanly, line-by-line diffs work, code review is easy.
-
-To open them as notebooks: import any `.py` file into Databricks via **Workspace → Import → File** and Databricks will render the cells.
-
----
-
-## Troubleshooting
-
-| Issue | Fix |
-|---|---|
-| `FileNotFoundError: CarPrice_Assignment.csv` | Upload the CSV to `/dbfs/FileStore/car_price/raw/` first |
-| `ModuleNotFoundError: xgboost` | The `15.4.x-cpu-ml-scala2.12` runtime in `databricks.yml` includes it — make sure you didn't change that |
-| `Permission denied` writing to DBFS | Switch to a Unity Catalog volume by editing `BASE_PATH` in `00_config.py` |
-| Workspace URL wrong | Re-edit `databricks.yml` and re-run `databricks bundle deploy` |
+| Phase | Notebook | Description |
+|------|----------|-------------|
+| 1 | `01_Data_Gathering.ipynb` | Load dataset and inspect raw data |
+| 2 | `02_Data_Cleaning.ipynb` | Handle missing values, fix inconsistencies, clean columns |
+| 3 | `03_EDA.ipynb` | Exploratory data analysis, distributions, correlations |
+| 4 | `04_Feature_Engineering.ipynb` | Create new features such as avg_mpg, brand tier, power-to-weight |
+| 5 | `05_Preprocessing.ipynb` | Encoding, scaling, train-test split |
+| 6 | `06_Train_Models.ipynb` | Train Linear Regression, Decision Tree, XGBoost |
+| 7 | `07_Evaluation.ipynb` | Compare MAE, RMSE, R² and visualize results |
+| 8 | `08_Explainability.ipynb` | Model interpretation with coefficients and tree logic |
+| 9 | `09_PyCaret.ipynb` | AutoML benchmark with multiple regression models |
+| 10 | `10_SHAP_LIME.ipynb` | SHAP and LIME explainability for black-box models |
 
 ---
 
-## Reproducibility
+# Models Used
 
-- All splits use `random_state=42`
-- All notebooks pin storage paths via `00_config.py` (single source of truth)
-- MLflow auto-logs Git commit hash on every run (when deployed via bundle from a Git repo)
-- Cluster spec is pinned in `databricks.yml` (Spark + Python versions)
+## Manual Models
+
+- Linear Regression  
+- Decision Tree  
+- XGBoost  
+
+## Automated Models
+
+Using **PyCaret**, around 17 regression models were benchmarked automatically, including:
+
+- Random Forest  
+- Extra Trees  
+- CatBoost  
+- LightGBM  
+- XGBoost  
 
 ---
 
-## Source
+# Evaluation Metrics
 
-Migrated from the Google Colab pipeline (8 notebooks). Changes for Databricks:
-- `drive.mount()` removed — DBFS is always available
-- `!pip install` → `%pip install` (Databricks magic)
-- File paths centralized in `00_config.py`
-- MLflow tracking added in notebook 06
-- Sequential execution orchestrated by `databricks.yml`
+Models were compared using:
+
+| Metric | Meaning |
+|-------|---------|
+| MAE | Average prediction error |
+| RMSE | Penalizes larger mistakes more strongly |
+| R² | Percentage of price variation explained |
+
+---
+
+# Model Results
+
+## Manual Workflow
+
+| Model | R² | RMSE |
+|------|----|------|
+| Linear Regression | 0.89 | $2,888 |
+| Decision Tree | 0.85 | $3,400 |
+| XGBoost | 0.94 | $2,182 |
+
+### Best Manual Model: **XGBoost**
+
+---
+
+## PyCaret Benchmark
+
+PyCaret ranked tree-based ensemble models highest.
+
+Top performers included:
+
+- Extra Trees  
+- Random Forest  
+- XGBoost  
+
+This confirmed that ensemble models were strongest for this dataset.
+
+---
+
+# Explainability Analysis
+
+To understand predictions from black-box models, two explainability tools were used:
+
+## SHAP
+
+Explains how much each feature increases or decreases predictions.
+
+## LIME
+
+Creates local explanations for individual predictions.
+
+### Most Important Features Across Methods:
+
+- engine size  
+- curb weight  
+- brand tier / brand value
+
+Because multiple methods agreed, confidence in the model findings increased.
+
+---
+
+# Key Findings
+
+## 1. Ensemble Models Performed Best
+
+Tree-based models such as XGBoost, Random Forest, and Extra Trees achieved the strongest results.
+
+## 2. Feature Engineering Added Real Value
+
+Custom features such as:
+
+- average MPG  
+- power-to-weight ratio  
+- brand tier
+
+improved model performance.
+
+## 3. Explainability Increased Trust
+
+SHAP and LIME helped explain why the models made their predictions.
+
+---
+
+# Limitations
+
+- Small dataset (**205 cars**)  
+- Missing important variables such as:
+  - mileage  
+  - manufacturing year  
+  - inflation / market timing
+
+---
+
+# Future Improvements
+
+- Use a larger and newer dataset  
+- Hyperparameter tuning  
+- Add mileage and year features  
+- Deploy as a real price prediction app
+
+---
